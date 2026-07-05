@@ -14,6 +14,18 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+# Drop Qt modules this widgets-only app never uses (pulled in by
+# optional plugins): QML/Quick, PDF, SVG, virtual keyboard
+def _unwanted(entry):
+    name = entry[0].lower()
+    patterns = ('qtpdf', 'qtqml', 'qtquick', 'qtvirtualkeyboard',
+                'qtsvg', 'qpdf', 'qsvg', 'virtualkeyboard',
+                'qtwebengine', 'qt3d', 'qtcharts')
+    return any(p in name for p in patterns)
+
+a.binaries = [b for b in a.binaries if not _unwanted(b)]
+a.datas = [d for d in a.datas if not _unwanted(d)]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
