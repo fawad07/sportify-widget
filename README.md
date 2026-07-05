@@ -6,8 +6,8 @@ A desktop widget for live sports scores and standings, built with PyQt5.
 
 All data comes from free, keyless public feeds:
 
-- **Soccer (World Cup, Premier League)** and **NHL** — ESPN's public
-  site API (scores + standings)
+- **Soccer (World Cup, Premier League, La Liga, Champions League)** and
+  **NHL** — ESPN's public site API (scores + standings)
 - **Cricket** — ESPNcricinfo's live-scores RSS feed (scores only;
   the feed has no standings)
 
@@ -22,6 +22,8 @@ fetch fails.
 - Chevron expands the bar into a drawer with all scores, standings,
   and controls (sport selector, refresh, settings)
 - Live scores and standings, auto-refreshed on a configurable interval
+- Favorite team: set it in settings and its matches lead the ticker,
+  with a native notification whenever its score changes
 - Frameless, draggable, always-on-top
 - System tray icon with show/quit actions
 - Dark theme

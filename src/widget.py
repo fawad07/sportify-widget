@@ -5,8 +5,8 @@ from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QAction, QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout,
-    QLabel, QMainWindow, QMenu, QPushButton, QScrollArea, QSpinBox,
-    QStyle, QSystemTrayIcon, QVBoxLayout, QWidget,
+    QLabel, QLineEdit, QMainWindow, QMenu, QPushButton, QScrollArea,
+    QSpinBox, QStyle, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
 from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QIcon
@@ -20,6 +20,8 @@ from .utils import truncate_text
 SPORTS = {
     'World Cup': 'world_cup',
     'Premier League': 'premier_league',
+    'La Liga': 'la_liga',
+    'Champions League': 'champions_league',
     'NHL': 'nhl',
     'Cricket': 'cricket',
 }
@@ -50,6 +52,9 @@ class SportWidget(QMainWindow):
         # Fetches run on a background thread; results arrive via signal
         self._fetching = False
         self.data_ready.connect(self.render_data)
+
+        # Last seen scores, used to detect changes for notifications
+        self._last_scores = {}
 
         # Load initial data
         self.load_data()
@@ -324,6 +329,42 @@ class SportWidget(QMainWindow):
                 items.append(f"{home} vs {away}  ·  {when}")
         return items
 
+    # --- Favorite team ---
+
+    def _favorite(self) -> str:
+        return (self.config.get('favorite_team') or '').strip().lower()
+
+    def _is_favorite_match(self, match: dict) -> bool:
+        favorite = self._favorite()
+        if not favorite:
+            return False
+        return (favorite in match.get('home_team', '').lower()
+                or favorite in match.get('away_team', '').lower())
+
+    def _prioritize_favorite(self, matches: list) -> list:
+        """Float the favorite team's matches to the top (stable sort)"""
+        if not self._favorite():
+            return matches
+        return sorted(matches, key=lambda m: not self._is_favorite_match(m))
+
+    def _notify_score_changes(self, matches: list):
+        """Show a native notification when the favorite team's score changes"""
+        for match in matches:
+            key = f"{match.get('home_team')}|{match.get('away_team')}"
+            scores = (match.get('home_score'), match.get('away_score'))
+            previous = self._last_scores.get(key)
+            self._last_scores[key] = scores
+            if previous is None or previous == scores:
+                continue
+            if not self._is_favorite_match(match):
+                continue
+            self.tray_icon.showMessage(
+                f"{match.get('home_team')} vs {match.get('away_team')}",
+                f"{scores[0]} – {scores[1]} ({match.get('status', '')})",
+                QSystemTrayIcon.Information,
+                5000,
+            )
+
     # --- Data ---
 
     def load_data(self):
@@ -357,8 +398,11 @@ class SportWidget(QMainWindow):
             self.status_label.setText("🟢")
             self.status_label.setToolTip(f"Last updated: {datetime.now().strftime('%I:%M:%S %p')}")
 
+        # Favorite team first, then notify if its score changed
+        matches = self._prioritize_favorite(data.get('matches', []))
+        self._notify_score_changes(matches)
+
         # Update ticker
-        matches = data.get('matches', [])
         self.ticker_items = self._build_ticker_items(matches) or ["No games scheduled"]
         self.ticker_index = 0
         self.ticker_label.setText(self.ticker_items[0])
@@ -527,10 +571,18 @@ class SportWidget(QMainWindow):
         """Show settings dialog"""
         dialog = QDialog(self)
         dialog.setWindowTitle("Settings")
-        dialog.setFixedSize(300, 300)
+        dialog.setFixedSize(300, 320)
         dialog.setStyleSheet(get_style())
 
         layout = QVBoxLayout(dialog)
+
+        # Favorite team
+        fav_layout = QHBoxLayout()
+        fav_layout.addWidget(QLabel("Favorite team:"))
+        fav_edit = QLineEdit(self.config.get('favorite_team', ''))
+        fav_edit.setPlaceholderText("e.g. Brazil")
+        fav_layout.addWidget(fav_edit)
+        layout.addLayout(fav_layout)
 
         # Refresh interval
         interval_layout = QHBoxLayout()
@@ -555,18 +607,20 @@ class SportWidget(QMainWindow):
         save_btn = QPushButton("Save Settings")
         save_btn.clicked.connect(lambda: self.save_settings(
             dialog, interval_spin.value(), top_check.isChecked(),
-            standings_check.isChecked()
+            standings_check.isChecked(), fav_edit.text().strip()
         ))
         layout.addWidget(save_btn)
 
         layout.addStretch()
         dialog.exec_()
 
-    def save_settings(self, dialog, interval, always_on_top, show_standings):
+    def save_settings(self, dialog, interval, always_on_top, show_standings,
+                      favorite_team):
         """Save settings from dialog"""
         self.config.set('refresh_interval', interval)
         self.config.set('always_on_top', always_on_top)
         self.config.set('show_standings', show_standings)
+        self.config.set('favorite_team', favorite_team)
 
         # Update timer
         self.timer.stop()
@@ -580,6 +634,9 @@ class SportWidget(QMainWindow):
         self.show()
 
         dialog.accept()
+
+        # Re-render so favorite-team prioritization applies immediately
+        self.load_data()
 
     def mousePressEvent(self, event):
         """Handle mouse press for dragging"""

@@ -51,6 +51,14 @@ class SportDataManager:
                 'name': 'Premier League', 'icon': '⚽',
                 'espn_path': 'soccer/eng.1',
             },
+            'la_liga': {
+                'name': 'La Liga', 'icon': '⚽',
+                'espn_path': 'soccer/esp.1',
+            },
+            'champions_league': {
+                'name': 'Champions League', 'icon': '⚽',
+                'espn_path': 'soccer/uefa.champions',
+            },
             'nhl': {
                 'name': 'NHL', 'icon': '🏒',
                 'espn_path': 'hockey/nhl',

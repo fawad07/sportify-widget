@@ -17,6 +17,7 @@ class ConfigManager:
     DEFAULT_CONFIG = {
         "sport": "world_cup",
         "refresh_interval": 60,
+        "favorite_team": "",
         "show_standings": True,
         "window_width": 540,
         "window_height": 600,
