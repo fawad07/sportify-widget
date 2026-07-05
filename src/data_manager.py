@@ -5,11 +5,13 @@ Fetches live data from free, keyless public sources:
 - ESPNcricinfo's live-scores RSS feed (cricket): scores only
 """
 
+import json
 import logging
 import re
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -21,6 +23,10 @@ logger = logging.getLogger(__name__)
 ESPN_SCOREBOARD_API = "https://site.api.espn.com/apis/site/v2/sports"
 ESPN_STANDINGS_API = "https://site.api.espn.com/apis/v2/sports"
 CRICINFO_RSS = "http://static.cricinfo.com/rss/livescores.xml"
+
+# Last successful payload per sport, kept on disk so the widget can show
+# real (if stale) data when a feed breaks — network outage or format change
+PERSISTENT_CACHE_PATH = Path.home() / ".sportify" / "last_data.json"
 
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0 (Sportify Widget)"}
 REQUEST_TIMEOUT = 10  # seconds
@@ -41,6 +47,7 @@ class SportDataManager:
     def __init__(self):
         self.cache = {}
         self.cache_duration = 30  # seconds
+        self._last_good = self._load_persistent_cache()
 
         self.sports = {
             'world_cup': {
@@ -89,9 +96,17 @@ class SportDataManager:
             else:
                 data = self._fetch_cricinfo(sport, info)
             self.cache[cache_key] = (time.time(), data)
+            self._store_last_good(sport, data)
             return data
         except Exception as e:
             logger.warning("Error fetching data for %s: %s", sport, e)
+            # Fall back to the last successful payload if there is one
+            fallback = self._last_good.get(sport)
+            if fallback:
+                stale = dict(fallback)
+                stale['stale'] = True
+                stale['error'] = str(e)
+                return stale
             return {
                 'sport': sport,
                 'sport_name': info['name'],
@@ -101,6 +116,22 @@ class SportDataManager:
                 'last_updated': datetime.now().isoformat(),
                 'error': str(e),
             }
+
+    def _load_persistent_cache(self) -> Dict[str, Any]:
+        try:
+            with open(PERSISTENT_CACHE_PATH) as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    def _store_last_good(self, sport: str, data: Dict[str, Any]):
+        self._last_good[sport] = data
+        try:
+            PERSISTENT_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with open(PERSISTENT_CACHE_PATH, 'w') as f:
+                json.dump(self._last_good, f)
+        except Exception as e:
+            logger.warning("Could not persist data cache: %s", e)
 
     def _result(self, sport: str, info: Dict[str, str],
                 matches: List[dict], standings: List[dict]) -> Dict[str, Any]:
@@ -128,6 +159,14 @@ class SportDataManager:
                 matches.append(self._parse_espn_event(event))
             except (KeyError, IndexError, StopIteration) as e:
                 logger.warning("Skipping unparsable event: %s", e)
+
+        # Events exist but none parsed: ESPN likely changed its format.
+        # Raising sends us to the last-good fallback instead of showing
+        # a misleading empty "No games scheduled".
+        if events and not matches:
+            raise ValueError(
+                f"ESPN response format may have changed for {path}: "
+                f"{len(events)} events, none parseable")
 
         standings = self._fetch_espn_standings(path)
         return self._result(sport, info, matches, standings)
@@ -198,12 +237,15 @@ class SportDataManager:
         resp.raise_for_status()
         root = ET.fromstring(resp.content)
 
-        matches = []
-        for item in root.iter('item'):
-            title = (item.findtext('title') or '').strip()
-            match = self._parse_cricinfo_title(title)
-            if match:
-                matches.append(match)
+        titles = [(item.findtext('title') or '').strip()
+                  for item in root.iter('item')]
+        matches = [m for m in (self._parse_cricinfo_title(t) for t in titles) if m]
+
+        # Same format-change guard as ESPN: items exist but none parsed
+        if titles and not matches:
+            raise ValueError(
+                f"Cricinfo feed format may have changed: "
+                f"{len(titles)} items, none parseable")
 
         # The feed has no standings
         return self._result(sport, info, matches[:12], [])

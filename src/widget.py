@@ -391,7 +391,13 @@ class SportWidget(QMainWindow):
             return
 
         # Update status
-        if data.get('error'):
+        if data.get('stale'):
+            self.status_label.setText("🟠")
+            updated = data.get('last_updated', '')[:16].replace('T', ' ')
+            self.status_label.setToolTip(
+                f"Live update failed: {data.get('error', 'unknown')}\n"
+                f"Showing last good data from {updated}")
+        elif data.get('error'):
             self.status_label.setText("🔴")
             self.status_label.setToolTip(f"Update failed: {data['error']}")
         else:

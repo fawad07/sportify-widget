@@ -12,9 +12,14 @@ All data comes from free, keyless public feeds:
   the feed has no standings)
 
 Fetches run on a background thread so the widget never freezes, and
-results are cached for 30 seconds. The status dot shows 🟡 while
-fetching, 🟢 on success, and 🔴 (with the error in its tooltip) when a
-fetch fails.
+results are cached for 30 seconds. If a live update fails — network
+trouble, or a feed changing its format — the widget falls back to the
+last successful data instead of going blank, and keeps that fallback
+across restarts (`~/.sportify/last_data.json`).
+
+The status dot shows 🟡 while fetching, 🟢 on success, 🟠 when showing
+last-good data after a failed update, and 🔴 when a fetch fails with
+nothing to fall back on (hover it for the error).
 
 ## Features
 - Slim ticker bar docked to the top of the screen, cycling through
@@ -55,6 +60,11 @@ pyinstaller main.spec
 ```
 
 The bundled app is written to `dist/Sportify.app`.
+
+## Support
+
+Sportify is free and MIT-licensed. If it earns a spot at the top of
+your screen, you can [buy me a coffee](https://buymeacoffee.com/fawad07).
 
 ## License
 
