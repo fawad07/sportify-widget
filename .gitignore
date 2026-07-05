@@ -1,0 +1,15 @@
+# Virtual environments
+venv/
+
+# Build artifacts
+build/
+dist/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Secrets
+.env
+
+# macOS
+.DS_Store
