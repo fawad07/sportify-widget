@@ -3,13 +3,13 @@
 import threading
 from datetime import datetime
 
-from PyQt5.QtWidgets import (
-    QAction, QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout,
+from PySide6.QtWidgets import (
+    QApplication, QCheckBox, QComboBox, QDialog, QHBoxLayout,
     QLabel, QLineEdit, QMainWindow, QMenu, QPushButton, QScrollArea,
     QSpinBox, QStyle, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt5.QtGui import QIcon
+from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve
+from PySide6.QtGui import QAction, QIcon
 
 from .config_manager import ConfigManager
 from .data_manager import SportDataManager
@@ -36,7 +36,7 @@ class SportWidget(QMainWindow):
     slides out beneath it like a drawer."""
 
     # Emitted from the fetch thread with the fetched data payload
-    data_ready = pyqtSignal(dict)
+    data_ready = Signal(dict)
 
     def __init__(self):
         super().__init__()
@@ -618,7 +618,7 @@ class SportWidget(QMainWindow):
         layout.addWidget(save_btn)
 
         layout.addStretch()
-        dialog.exec_()
+        dialog.exec()
 
     def save_settings(self, dialog, interval, always_on_top, show_standings,
                       favorite_team):
@@ -647,14 +647,14 @@ class SportWidget(QMainWindow):
     def mousePressEvent(self, event):
         """Handle mouse press for dragging"""
         if event.button() == Qt.LeftButton:
-            self.drag_pos = event.globalPos()
+            self.drag_pos = event.globalPosition().toPoint()
 
     def mouseMoveEvent(self, event):
         """Handle mouse move for dragging"""
         if self.drag_pos is not None:
-            delta = event.globalPos() - self.drag_pos
+            delta = event.globalPosition().toPoint() - self.drag_pos
             self.move(self.pos() + delta)
-            self.drag_pos = event.globalPos()
+            self.drag_pos = event.globalPosition().toPoint()
 
     def mouseReleaseEvent(self, event):
         """Handle mouse release"""

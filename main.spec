@@ -19,16 +19,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='Sportify',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -37,14 +34,27 @@ exe = EXE(
     entitlements_file=None,
     icon='assets/icon.icns',
 )
-app = BUNDLE(
+
+# onedir keeps the Qt libraries as separate, replaceable shared
+# libraries inside the bundle, as the LGPL expects
+coll = COLLECT(
     exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='Sportify',
+)
+
+app = BUNDLE(
+    coll,
     name='Sportify.app',
     icon='assets/icon.icns',
     bundle_identifier='com.fawad.sportify',
     info_plist={
         'LSUIElement': True,
         'CFBundleDisplayName': 'Sportify',
-        'CFBundleShortVersionString': '1.0.1',
+        'CFBundleShortVersionString': '1.0.2',
     },
 )

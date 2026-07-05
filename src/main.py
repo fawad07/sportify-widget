@@ -4,8 +4,7 @@
 import logging
 import sys
 
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from .widget import SportWidget
 
@@ -14,17 +13,14 @@ def main():
     """Main entry point"""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    # Enable high DPI support (must be set before QApplication is created)
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
+    # Qt 6 enables high-DPI scaling by default
     app = QApplication(sys.argv)
     app.setApplicationName("Sportify Widget")
 
     widget = SportWidget()
     widget.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

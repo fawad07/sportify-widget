@@ -1,6 +1,7 @@
 # 🏆 Sportify Widget
 
-A desktop widget for live sports scores and standings, built with PyQt5.
+A desktop widget for live sports scores and standings, built with Qt
+(PySide6).
 
 ## Data sources
 
@@ -71,3 +72,7 @@ your screen, you can [buy me a coffee](https://buymeacoffee.com/fawad07).
 MIT — see [LICENSE](LICENSE). Score data comes from unofficial public
 endpoints (ESPN, ESPNcricinfo) and is intended for personal,
 non-commercial use.
+
+Sportify uses Qt through [PySide6](https://doc.qt.io/qtforpython-6/)
+under the LGPLv3. The app bundle ships the unmodified Qt libraries as
+separate, replaceable shared libraries (`Sportify.app/Contents/Frameworks`).
