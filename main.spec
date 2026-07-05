@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='main',
+    name='Sportify',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,9 +35,16 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/icon.icns',
 )
 app = BUNDLE(
     exe,
-    name='main.app',
-    bundle_identifier=None,
+    name='Sportify.app',
+    icon='assets/icon.icns',
+    bundle_identifier='com.fawad.sportify',
+    info_plist={
+        'LSUIElement': True,
+        'CFBundleDisplayName': 'Sportify',
+        'CFBundleShortVersionString': '1.0.0',
+    },
 )

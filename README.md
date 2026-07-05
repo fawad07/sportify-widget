@@ -31,7 +31,7 @@ fetch fails.
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/sportify-widget.git
+git clone https://github.com/fawad07/sportify-widget.git
 cd sportify-widget
 python3 -m venv venv
 source venv/bin/activate
@@ -54,4 +54,10 @@ pip install pyinstaller
 pyinstaller main.spec
 ```
 
-The bundled app is written to `dist/`.
+The bundled app is written to `dist/Sportify.app`.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Score data comes from unofficial public
+endpoints (ESPN, ESPNcricinfo) and is intended for personal,
+non-commercial use.
