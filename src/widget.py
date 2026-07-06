@@ -77,7 +77,10 @@ class SportWidget(QMainWindow):
         """Set up the main UI"""
         # Window settings
         self.setWindowTitle("🏆 Sportify Widget")
-        flags = Qt.FramelessWindowHint | Qt.Tool
+        # No Qt.Tool: on macOS/Qt6 tool windows are panels that hide
+        # whenever the app is inactive. The bundle's LSUIElement already
+        # keeps the app out of the Dock.
+        flags = Qt.FramelessWindowHint
         if self.config.get('always_on_top', True):
             flags |= Qt.WindowStaysOnTopHint
         self.setWindowFlags(flags)
