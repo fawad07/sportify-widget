@@ -8,8 +8,8 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QMainWindow, QMenu, QPushButton, QScrollArea,
     QSpinBox, QStyle, QSystemTrayIcon, QVBoxLayout, QWidget,
 )
-from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtCore import Qt, QTimer, Signal, QPropertyAnimation, QEasingCurve, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 
 from .config_manager import ConfigManager
 from .data_manager import SportDataManager
@@ -324,6 +324,8 @@ class SportWidget(QMainWindow):
 
             if status == 'LIVE':
                 suffix = f"LIVE {match.get('period') or ''}".strip()
+                if match.get('broadcast'):
+                    suffix += f"  ·  📺 {match['broadcast']}"
                 items.append(f"{home} {home_score}–{away_score} {away}  ·  {suffix}")
             elif status == 'FT':
                 items.append(f"{home} {home_score}–{away_score} {away}  ·  FT")
@@ -487,6 +489,8 @@ class SportWidget(QMainWindow):
             status_text += f" • {period}"
         if status == 'Scheduled' and match.get('time'):
             status_text += f" • {match.get('time')}"
+        if status == 'LIVE' and match.get('broadcast'):
+            status_text += f" • 📺 {match['broadcast']}"
 
         status_label = QLabel(status_text)
         status_label.setObjectName("match-status")
@@ -498,7 +502,22 @@ class SportWidget(QMainWindow):
         bottom_layout.addWidget(status_label)
         bottom_layout.addStretch()
 
+        # Opens the official gamecast page (where the legal stream lives)
+        if status == 'LIVE' and match.get('link'):
+            watch_btn = QPushButton("Watch")
+            watch_btn.setFixedSize(56, 20)
+            url = match['link']
+            watch_btn.clicked.connect(
+                lambda _=False, u=url: QDesktopServices.openUrl(QUrl(u)))
+            bottom_layout.addWidget(watch_btn)
+
         layout.addLayout(bottom_layout)
+
+        # Play-by-play for live games (newest first)
+        for line in match.get('events', [])[:3]:
+            event_label = QLabel(line)
+            event_label.setObjectName("event-line")
+            layout.addWidget(event_label)
 
         return card
 

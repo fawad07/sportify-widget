@@ -30,6 +30,10 @@ nothing to fall back on (hover it for the error).
 - Live scores and standings, auto-refreshed on a configurable interval
 - Favorite team: set it in settings and its matches lead the ticker,
   with a native notification whenever its score changes
+- Live games show the broadcaster (e.g. 📺 FOX One) and a Watch button
+  that opens the official gamecast page in your browser
+- Live play-by-play on match cards: goals, cards, and substitutions
+  with the minute, newest first
 - Frameless, draggable, always-on-top
 - System tray icon with show/quit actions
 - Dark theme

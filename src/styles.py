@@ -72,6 +72,12 @@ QWidget {
     font-size: 10px;
 }
 
+#event-line {
+    color: #8892b0;
+    font-size: 10px;
+    padding-left: 2px;
+}
+
 /* Standings */
 #standings-header {
     color: #8892b0;

@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="sportify-widget",
-    version="1.0.2",
+    version="1.0.3",
     description="Desktop sports widget for live scores and standings",
     author="Muhammad Fawad Aleem",
     packages=find_packages(),

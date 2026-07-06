@@ -168,8 +168,56 @@ class SportDataManager:
                 f"ESPN response format may have changed for {path}: "
                 f"{len(events)} events, none parseable")
 
+        # Play-by-play for live games (cap the extra requests per refresh)
+        live_fetched = 0
+        for match in matches:
+            if match['status'] == 'LIVE' and match['event_id'] and live_fetched < 3:
+                match['events'] = self._fetch_key_events(path, match['event_id'])
+                live_fetched += 1
+
         standings = self._fetch_espn_standings(path)
         return self._result(sport, info, matches, standings)
+
+    def _fetch_key_events(self, path: str, event_id: str) -> List[str]:
+        """Fetch recent key plays (goals, cards, subs) for a live game.
+        Returns [] on any failure so play-by-play never breaks scores."""
+        try:
+            resp = requests.get(
+                f"{ESPN_SCOREBOARD_API}/{path}/summary",
+                params={'event': event_id},
+                headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            key_events = resp.json().get('keyEvents', [])
+        except Exception as e:
+            logger.warning("Key events fetch failed for %s: %s", event_id, e)
+            return []
+
+        lines = []
+        for ke in key_events:
+            line = self._format_key_event(ke)
+            if line:
+                lines.append(line)
+        lines.reverse()  # newest first
+        return lines[:5]
+
+    def _format_key_event(self, ke: dict) -> Optional[str]:
+        """Format one key event; returns None for noise (delays, kickoff…)"""
+        type_text = (ke.get('type', {}).get('text') or '').lower()
+        if type_text.startswith('goal') or type_text in ('own goal', 'penalty - scored'):
+            icon = '⚽'
+        elif type_text == 'penalty - missed':
+            icon = '❌'
+        elif type_text == 'yellow card':
+            icon = '🟨'
+        elif type_text == 'red card':
+            icon = '🟥'
+        elif type_text == 'substitution':
+            icon = '🔄'
+        else:
+            return None
+        clock = ke.get('clock', {}).get('displayValue', '')
+        desc = ke.get('shortText') or ke.get('type', {}).get('text', '')
+        return f"{clock} {icon} {desc}".strip()
 
     def _parse_espn_event(self, event: dict) -> dict:
         competition = event['competitions'][0]
@@ -181,7 +229,28 @@ class SportDataManager:
         status = STATUS_BY_STATE.get(state, 'Scheduled')
         detail = event['status']['type'].get('shortDetail', '')
 
+        # Broadcaster: prefer a streaming service over linear TV
+        broadcast = ''
+        geo = competition.get('geoBroadcasts', [])
+        for g in geo:
+            if g.get('type', {}).get('shortName') == 'STREAMING':
+                broadcast = g.get('media', {}).get('shortName', '')
+                break
+        if not broadcast and geo:
+            broadcast = geo[0].get('media', {}).get('shortName', '')
+
+        # Official gamecast page, used as the "Watch" link target
+        link = ''
+        for l in event.get('links', []):
+            rels = l.get('rel') or []
+            if 'gamecast' in rels or 'summary' in rels:
+                link = l.get('href', '')
+                break
+        if not link and event.get('links'):
+            link = event['links'][0].get('href', '')
+
         return {
+            'event_id': event.get('id', ''),
             'home_team': home['team'].get('displayName', 'Home'),
             'away_team': away['team'].get('displayName', 'Away'),
             'home_score': home.get('score') if state != 'pre' else None,
@@ -189,6 +258,9 @@ class SportDataManager:
             'status': status,
             'time': format_event_time(event.get('date', '')) if state == 'pre' else None,
             'period': detail if state == 'in' else '',
+            'broadcast': broadcast,
+            'link': link,
+            'events': [],
         }
 
     def _fetch_espn_standings(self, path: str) -> List[dict]:

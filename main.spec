@@ -67,6 +67,6 @@ app = BUNDLE(
     info_plist={
         'LSUIElement': True,
         'CFBundleDisplayName': 'Sportify',
-        'CFBundleShortVersionString': '1.0.2',
+        'CFBundleShortVersionString': '1.0.3',
     },
 )
