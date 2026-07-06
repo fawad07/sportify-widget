@@ -34,6 +34,8 @@ nothing to fall back on (hover it for the error).
   that opens the official gamecast page in your browser
 - Live play-by-play on match cards: goals, cards, and substitutions
   with the minute, newest first
+- Score alerts: when a score changes the bar pulses red and the ticker
+  pins that match with its latest key event for a few seconds
 - Frameless, draggable, always-on-top
 - System tray icon with show/quit actions
 - Dark theme

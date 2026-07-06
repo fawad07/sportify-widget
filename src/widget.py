@@ -29,6 +29,8 @@ SPORTS = {
 BAR_HEIGHT = 46
 TICKER_CYCLE_MS = 5000
 DRAWER_ANIM_MS = 220
+ALERT_DURATION_MS = 6000
+FLASH_INTERVAL_MS = 280
 
 
 class SportWidget(QMainWindow):
@@ -53,8 +55,15 @@ class SportWidget(QMainWindow):
         self._fetching = False
         self.data_ready.connect(self.render_data)
 
-        # Last seen scores, used to detect changes for notifications
+        # Last seen scores, used to detect changes for alerts/notifications
         self._last_scores = {}
+
+        # Score-alert state (bar pulse + pinned ticker banner)
+        self._alert_active = False
+        self._alert_token = 0
+        self._flash_remaining = 0
+        self._flash_timer = QTimer(self)
+        self._flash_timer.timeout.connect(self._on_flash_tick)
 
         # Load initial data
         self.load_data()
@@ -308,7 +317,7 @@ class SportWidget(QMainWindow):
 
     def advance_ticker(self):
         """Cycle to the next match on the ticker"""
-        if len(self.ticker_items) < 2:
+        if self._alert_active or len(self.ticker_items) < 2:
             return
         self.ticker_index = (self.ticker_index + 1) % len(self.ticker_items)
         self.ticker_label.setText(self.ticker_items[self.ticker_index])
@@ -352,23 +361,66 @@ class SportWidget(QMainWindow):
             return matches
         return sorted(matches, key=lambda m: not self._is_favorite_match(m))
 
-    def _notify_score_changes(self, matches: list):
-        """Show a native notification when the favorite team's score changes"""
+    def _detect_score_changes(self, matches: list) -> list:
+        """Return the matches whose score changed since the last refresh"""
+        changed = []
         for match in matches:
             key = f"{match.get('home_team')}|{match.get('away_team')}"
             scores = (match.get('home_score'), match.get('away_score'))
             previous = self._last_scores.get(key)
             self._last_scores[key] = scores
-            if previous is None or previous == scores:
-                continue
-            if not self._is_favorite_match(match):
-                continue
-            self.tray_icon.showMessage(
-                f"{match.get('home_team')} vs {match.get('away_team')}",
-                f"{scores[0]} – {scores[1]} ({match.get('status', '')})",
-                QSystemTrayIcon.Information,
-                5000,
-            )
+            if previous is not None and previous != scores:
+                changed.append(match)
+        return changed
+
+    # --- Score alert (bar pulse + pinned banner) ---
+
+    def _trigger_score_alert(self, match: dict, icon: str):
+        """Grab the eye for a moment: pulse the bar and pin the changed
+        match on the ticker with its latest key event."""
+        home = truncate_text(match.get('home_team', ''), 16)
+        away = truncate_text(match.get('away_team', ''), 16)
+        home_score = match.get('home_score')
+        away_score = match.get('away_score')
+        home_score = '—' if home_score in (None, '') else home_score
+        away_score = '—' if away_score in (None, '') else away_score
+
+        banner = f"{icon} {home} {home_score}–{away_score} {away}"
+        latest = (match.get('events') or [''])[0]
+        if latest:
+            banner += f"  ·  {latest}"
+
+        self._alert_active = True
+        self.ticker_label.setText(banner)
+
+        self._flash_remaining = 6  # three on/off pulses
+        self._apply_bar_alert(True)
+        self._flash_timer.start(FLASH_INTERVAL_MS)
+
+        self._alert_token += 1
+        token = self._alert_token
+        QTimer.singleShot(ALERT_DURATION_MS, lambda: self._end_alert(token))
+
+    def _on_flash_tick(self):
+        self._flash_remaining -= 1
+        if self._flash_remaining <= 0:
+            self._flash_timer.stop()
+            self._apply_bar_alert(False)
+            return
+        self._apply_bar_alert(self._flash_remaining % 2 == 0)
+
+    def _apply_bar_alert(self, on: bool):
+        self.ticker_bar.setProperty('alert', on)
+        for w in (self.ticker_bar, self.league_label, self.ticker_label):
+            w.style().unpolish(w)
+            w.style().polish(w)
+
+    def _end_alert(self, token: int):
+        if token != self._alert_token:
+            return  # a newer alert has taken over
+        self._alert_active = False
+        if self.ticker_items:
+            self.ticker_label.setText(self.ticker_items[self.ticker_index])
 
     # --- Data ---
 
@@ -409,15 +461,32 @@ class SportWidget(QMainWindow):
             self.status_label.setText("🟢")
             self.status_label.setToolTip(f"Last updated: {datetime.now().strftime('%I:%M:%S %p')}")
 
-        # Favorite team first, then notify if its score changed
+        # Favorite team first, then look for score changes
         matches = self._prioritize_favorite(data.get('matches', []))
-        self._notify_score_changes(matches)
+        changed = self._detect_score_changes(matches)
+
+        # Native notification when the favorite team's score changes
+        for match in changed:
+            if self._is_favorite_match(match):
+                self.tray_icon.showMessage(
+                    f"{match.get('home_team')} vs {match.get('away_team')}",
+                    f"{match.get('home_score')} – {match.get('away_score')} "
+                    f"({match.get('status', '')})",
+                    QSystemTrayIcon.Information,
+                    5000,
+                )
 
         # Update ticker
         self.ticker_items = self._build_ticker_items(matches) or ["No games scheduled"]
         self.ticker_index = 0
         self.ticker_label.setText(self.ticker_items[0])
         self.league_label.setText(f"{data.get('icon', '🏆')} {data.get('sport_name', 'Sportify')}")
+
+        # Pulse the bar and pin the changed match (favorite's game wins)
+        if changed:
+            alert_match = next(
+                (m for m in changed if self._is_favorite_match(m)), changed[0])
+            self._trigger_score_alert(alert_match, data.get('icon', '🏆'))
 
         # Update drawer sections
         self.update_scores(matches)

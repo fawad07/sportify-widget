@@ -27,6 +27,17 @@ QWidget {
     border: 1px solid #3d3d6b;
 }
 
+/* Score-alert pulse */
+#tickerBar[alert="true"] {
+    background-color: rgba(233, 69, 96, 235);
+    border: 1px solid #ff8fa3;
+}
+
+#tickerBar[alert="true"] #league-label,
+#tickerBar[alert="true"] #ticker-text {
+    color: #ffffff;
+}
+
 #league-label {
     color: #e94560;
     font-size: 15px;
