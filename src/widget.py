@@ -588,6 +588,16 @@ class SportWidget(QMainWindow):
             event_label.setObjectName("event-line")
             layout.addWidget(event_label)
 
+        # Highlight clips — open on ESPN's own page in the browser
+        for highlight in match.get('highlights', [])[:2]:
+            hl_btn = QPushButton(f"▶  {truncate_text(highlight['headline'], 46)}")
+            hl_btn.setObjectName("highlight-btn")
+            hl_btn.setCursor(Qt.PointingHandCursor)
+            hl_btn.setToolTip(highlight['headline'])
+            hl_btn.clicked.connect(
+                lambda _=False, u=highlight['url']: QDesktopServices.openUrl(QUrl(u)))
+            layout.addWidget(hl_btn)
+
         return card
 
     def update_standings(self, standings: list):

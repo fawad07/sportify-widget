@@ -168,37 +168,56 @@ class SportDataManager:
                 f"ESPN response format may have changed for {path}: "
                 f"{len(events)} events, none parseable")
 
-        # Play-by-play for live games (cap the extra requests per refresh)
-        live_fetched = 0
+        # Per-game extras: play-by-play for live games, highlight clips
+        # for live and finished ones. Live games get priority under a
+        # cap on extra requests per refresh.
+        summaries = 0
         for match in matches:
-            if match['status'] == 'LIVE' and match['event_id'] and live_fetched < 3:
-                match['events'] = self._fetch_key_events(path, match['event_id'])
-                live_fetched += 1
+            if match['status'] == 'LIVE' and match['event_id'] and summaries < 3:
+                match['events'], match['highlights'] = \
+                    self._fetch_summary_extras(path, match['event_id'])
+                summaries += 1
+        for match in matches:
+            if match['status'] == 'FT' and match['event_id'] and summaries < 5:
+                _, match['highlights'] = \
+                    self._fetch_summary_extras(path, match['event_id'])
+                summaries += 1
 
         standings = self._fetch_espn_standings(path)
         return self._result(sport, info, matches, standings)
 
-    def _fetch_key_events(self, path: str, event_id: str) -> List[str]:
-        """Fetch recent key plays (goals, cards, subs) for a live game.
-        Returns [] on any failure so play-by-play never breaks scores."""
+    def _fetch_summary_extras(self, path: str, event_id: str):
+        """Fetch key plays and highlight clips for a game. Returns
+        (event_lines, highlights); ([], []) on any failure so extras
+        never break the scores."""
         try:
             resp = requests.get(
                 f"{ESPN_SCOREBOARD_API}/{path}/summary",
                 params={'event': event_id},
                 headers=REQUEST_HEADERS, timeout=REQUEST_TIMEOUT)
             resp.raise_for_status()
-            key_events = resp.json().get('keyEvents', [])
+            payload = resp.json()
         except Exception as e:
-            logger.warning("Key events fetch failed for %s: %s", event_id, e)
-            return []
+            logger.warning("Summary fetch failed for %s: %s", event_id, e)
+            return [], []
 
         lines = []
-        for ke in key_events:
+        for ke in payload.get('keyEvents', []):
             line = self._format_key_event(ke)
             if line:
                 lines.append(line)
         lines.reverse()  # newest first
-        return lines[:5]
+
+        highlights = []
+        for video in payload.get('videos', []):
+            url = video.get('links', {}).get('web', {}).get('href', '')
+            if url:
+                highlights.append({
+                    'headline': video.get('headline', 'Highlight'),
+                    'url': url,
+                })
+
+        return lines[:5], highlights[:3]
 
     def _format_key_event(self, ke: dict) -> Optional[str]:
         """Format one key event; returns None for noise (delays, kickoff…)"""
@@ -261,6 +280,7 @@ class SportDataManager:
             'broadcast': broadcast,
             'link': link,
             'events': [],
+            'highlights': [],
         }
 
     def _fetch_espn_standings(self, path: str) -> List[dict]:

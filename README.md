@@ -36,6 +36,8 @@ nothing to fall back on (hover it for the error).
   with the minute, newest first
 - Score alerts: when a score changes the bar pulses red and the ticker
   pins that match with its latest key event for a few seconds
+- Highlight clips on live and finished matches — click to watch on
+  ESPN's own video page in your browser
 - Frameless, draggable, always-on-top
 - System tray icon with show/quit actions
 - Dark theme

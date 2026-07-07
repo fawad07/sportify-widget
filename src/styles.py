@@ -89,6 +89,20 @@ QWidget {
     padding-left: 2px;
 }
 
+#highlight-btn {
+    background: transparent;
+    border: none;
+    color: #8892b0;
+    font-size: 10px;
+    text-align: left;
+    padding: 1px 2px;
+}
+
+#highlight-btn:hover {
+    color: #00d2d3;
+    background: transparent;
+}
+
 /* Standings */
 #standings-header {
     color: #8892b0;
