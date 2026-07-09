@@ -329,6 +329,8 @@ class SportWidget(QMainWindow):
             away = truncate_text(match.get('away_team', ''), 18)
             home_score = match.get('home_score')
             away_score = match.get('away_score')
+            home_score = '—' if home_score in (None, '') else home_score
+            away_score = '—' if away_score in (None, '') else away_score
             status = match.get('status', 'Scheduled')
 
             if status == 'LIVE':

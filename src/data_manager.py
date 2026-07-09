@@ -16,13 +16,17 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from .utils import format_event_time
+from .utils import format_event_time, truncate_text
 
 logger = logging.getLogger(__name__)
 
 ESPN_SCOREBOARD_API = "https://site.api.espn.com/apis/site/v2/sports"
 ESPN_STANDINGS_API = "https://site.api.espn.com/apis/v2/sports"
 CRICINFO_RSS = "http://static.cricinfo.com/rss/livescores.xml"
+
+# Today's cricket slate across all leagues, with international class ids
+CRICKET_HEADER_API = ("https://site.web.api.espn.com/apis/personalized/v2/"
+                      "scoreboard/header?sport=cricket")
 
 # Last successful payload per sport, kept on disk so the widget can show
 # real (if stale) data when a feed breaks — network outage or format change
@@ -94,7 +98,7 @@ class SportDataManager:
             if 'espn_path' in info:
                 data = self._fetch_espn(sport, info)
             else:
-                data = self._fetch_cricinfo(sport, info)
+                data = self._fetch_cricket(sport, info)
             self.cache[cache_key] = (time.time(), data)
             self._store_last_good(sport, data)
             return data
@@ -321,7 +325,89 @@ class SportDataManager:
             row['rank'] = i + 1
         return rows
 
-    # --- Cricinfo RSS (cricket) ---
+    # --- Cricket (ESPN header feed, international matches & series) ---
+
+    def _fetch_cricket(self, sport: str, info: Dict[str, str]) -> Dict[str, Any]:
+        """International cricket from ESPN's header feed; falls back to
+        the Cricinfo RSS live feed if that breaks."""
+        try:
+            return self._fetch_cricket_international(sport, info)
+        except Exception as e:
+            logger.warning(
+                "International cricket feed failed (%s); using RSS fallback", e)
+            return self._fetch_cricinfo(sport, info)
+
+    def _fetch_cricket_international(self, sport: str,
+                                     info: Dict[str, str]) -> Dict[str, Any]:
+        resp = requests.get(CRICKET_HEADER_API, headers=REQUEST_HEADERS,
+                            timeout=REQUEST_TIMEOUT)
+        resp.raise_for_status()
+        sports = resp.json().get('sports') or []
+        leagues = sports[0].get('leagues', []) if sports else []
+
+        matches = []
+        for league in leagues:
+            series = league.get('shortName') or league.get('name', '')
+            for event in league.get('events', []):
+                intl_class = (event.get('class') or {}).get(
+                    'internationalClassId', '0')
+                if intl_class in (None, '', '0'):
+                    continue  # domestic league — skip
+                match = self._parse_cricket_event(event, series)
+                if match:
+                    matches.append(match)
+
+        # Live first, then upcoming (soonest first), then recent results
+        live = [m for m in matches if m['status'] == 'LIVE']
+        upcoming = sorted((m for m in matches if m['status'] == 'Scheduled'),
+                          key=lambda m: m.get('date') or '')
+        finished = sorted((m for m in matches if m['status'] == 'FT'),
+                          key=lambda m: m.get('date') or '', reverse=True)
+
+        return self._result(sport, info, (live + upcoming + finished)[:12], [])
+
+    def _parse_cricket_event(self, event: dict, series: str) -> Optional[dict]:
+        competitors = event.get('competitors', [])
+        if len(competitors) < 2:
+            return None
+        home = next((c for c in competitors if c.get('homeAway') == 'home'),
+                    competitors[0])
+        away = next((c for c in competitors if c.get('homeAway') == 'away'),
+                    competitors[-1])
+
+        state = event.get('status', 'pre')
+        status = STATUS_BY_STATE.get(state, 'Scheduled')
+        full_type = (event.get('fullStatus') or {}).get('type', {})
+        detail = full_type.get('detail') or event.get('summary') or ''
+
+        def clean_score(competitor):
+            # '72/8 (20 ov, target 181)' -> '72/8'
+            score = (competitor.get('score') or '').split(' (')[0].strip()
+            return score or None
+
+        period = ''
+        if status == 'LIVE' and detail.lower() not in ('', 'live'):
+            period = detail  # e.g. innings/session info when ESPN has it
+        elif status == 'FT' and detail not in ('', 'Final', 'Result'):
+            period = detail  # e.g. Postponed, Abandoned
+
+        return {
+            'event_id': event.get('id', ''),
+            'date': event.get('date', ''),
+            'home_team': home.get('displayName', 'Home'),
+            'away_team': away.get('displayName', 'Away'),
+            'home_score': clean_score(home) if state != 'pre' else None,
+            'away_score': clean_score(away) if state != 'pre' else None,
+            'status': status,
+            'time': format_event_time(event.get('date', '')) if state == 'pre' else None,
+            'period': period,
+            'broadcast': '',
+            'link': event.get('link', ''),
+            'events': [f"🏆 {truncate_text(series, 42)}"] if series else [],
+            'highlights': [],
+        }
+
+    # --- Cricinfo RSS (cricket fallback) ---
 
     def _fetch_cricinfo(self, sport: str, info: Dict[str, str]) -> Dict[str, Any]:
         resp = requests.get(CRICINFO_RSS, headers=REQUEST_HEADERS,

@@ -9,8 +9,10 @@ All data comes from free, keyless public feeds:
 
 - **Soccer (World Cup, Premier League, La Liga, Champions League)** and
   **NHL** — ESPN's public site API (scores + standings)
-- **Cricket** — ESPNcricinfo's live-scores RSS feed (scores only;
-  the feed has no standings)
+- **Cricket** — ESPN's cricket feed, filtered to international matches
+  and series (Tests, ODIs, T20Is): live games, upcoming fixtures, and
+  recent results with series names. Falls back to ESPNcricinfo's RSS
+  live feed if the main feed breaks. No standings.
 
 Fetches run on a background thread so the widget never freezes, and
 results are cached for 30 seconds. If a live update fails — network
